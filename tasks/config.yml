@@ -1,0 +1,55 @@
+---
+
+- block:
+    - name: Render Template
+      become: yes
+      template:
+        src: "zones.conf.j2"
+        dest: "/etc/icinga2/zones.conf"
+        owner: "{{ icinga2_cluster_icinga_user }}"
+        group: "{{ icinga2_cluster_icinga_user }}"
+        mode: "0740"
+
+    - name: Set constant NodeName
+      become: yes
+      lineinfile:
+        path: "/etc/icinga2/constants.conf"
+        regexp: 'const NodeName = ".+"'
+        line: 'const NodeName = "{{ common_name }}"'
+
+    - name: Set constant ZoneName
+      become: yes
+      lineinfile:
+        path: "/etc/icinga2/constants.conf"
+        regexp: 'const ZoneName = ".+"'
+        line: 'const ZoneName = "{{ common_name }}"'
+
+    - name: Set up API feature
+      become: yes
+      copy:
+        dest: "/etc/icinga2/features-available/api.conf"
+        content: |
+          object ApiListener "api" {
+            accept_config = true
+            accept_commands = true
+          }
+        owner: "{{ icinga2_cluster_icinga_user }}"
+        group: "{{ icinga2_cluster_icinga_user }}"
+        mode: "0744"
+      when:
+        - inventory_hostname != icinga2_cluster_ca_node
+        - ansible_fqdn != icinga2_cluster_ca_node
+
+    - name: Activate API feature
+      become: yes
+      file:
+        state: link
+        src: "/etc/icinga2/features-available/api.conf"
+        dest: "/etc/icinga2/features-enabled/api.conf"
+        owner: "{{ icinga2_cluster_icinga_user }}"
+        group: "{{ icinga2_cluster_icinga_user }}"
+      when:
+        - inventory_hostname != icinga2_cluster_ca_node
+        - ansible_fqdn != icinga2_cluster_ca_node
+
+  notify: "restart_icinga2"

@@ -1,0 +1,51 @@
+---
+
+- name: Check wether CA already exists
+  become: yes
+  stat:
+    path: "/var/lib/icinga2/ca/ca.key"
+  register: "st"
+
+- block:
+    - name: Backup old CA
+      become: yes
+      copy:
+        remote_src: true
+        src: "/var/lib/icinga2/ca/{{ item }}"
+        dest: "/var/lib/icinga2/ca/{{ item }}.{{ ansible_date_time.date }}.bak"
+        owner: "{{ icinga2_cluster_icinga_user }}"
+        group: "{{ icinga2_cluster_icinga_user }}"
+        mode: "0644"
+      loop:
+        - "ca.key"
+        - "ca.crt"
+
+    - name: Delete old CA
+      become: yes
+      file:
+        state: absent
+        path: "/var/lib/icinga2/ca/{{ item }}"
+      loop:
+        - "ca.key"
+        - "ca.crt"
+
+  when:
+    - st.stat.exists
+    - icinga2_cluster_ca_force
+
+- name: Create new CA
+  become: yes
+  shell:
+    cmd: |
+      icinga2 pki new-ca
+  changed_when: true
+  notify:
+    - "new_ca"
+    - "restart_icinga2"
+  when: (not st.stat.exists) or (icinga2_cluster_ca_force)
+
+- name: Set fact to let nodes know they need new certificates
+  run_once: yes
+  set_fact:
+    icinga2_cluster_cert_force: true
+  when: (not st.stat.exists) or (icinga2_cluster_ca_force)

@@ -1,0 +1,47 @@
+{% for endpoint in icinga2_cluster_endpoint_list %}
+{% if endpoint.name is defined %}
+{% set endpoint_name = endpoint.name %}
+{% else %}
+{% set endpoint_name = endpoint.host %}
+{% endif %}
+object Endpoint "{{ endpoint_name }}" {
+{% if ansible_fqdn == endpoint.host or inventory_hostname == endpoint.host %}
+{% else %}
+{% if endpoint.ip | default('') %}
+    host = "{{ endpoint.ip }}"
+{% else %}
+    host = "{{ hostvars[endpoint.host].ansible_default_ipv4.address }}"
+{% endif %}
+{% if endpoint.port is defined %}
+    port = "{{ endpoint.port }}"
+{% elif icinga2_cluster_port %}
+    port = "{{ icinga2_cluster_port }}"
+{% else %}
+{% endif %}
+{% endif %}
+}
+
+{% endfor %}
+{% for zone in icinga2_cluster_zones %}
+object Zone "{{ zone.name }}" {
+    endpoints = [ 
+{%- for endpoint in zone.endpoints %}
+{% if endpoint.name is defined %}
+{% set endpoint_name = endpoint.name %}
+{% else %}
+{% set endpoint_name = endpoint.host %}
+{% endif %}
+ "{{ endpoint_name }}", 
+{%- endfor %}
+ ]
+{% if zone.parent is defined %}
+    parent = "{{ zone.parent }}"
+{% endif %}
+}
+
+{% endfor %}
+{% for zone in icinga2_cluster_global_zones %}
+object Zone "{{ zone }}" {
+    global = true
+}
+{% endfor %}

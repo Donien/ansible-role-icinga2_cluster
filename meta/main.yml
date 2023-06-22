@@ -1,0 +1,26 @@
+---
+
+galaxy_info:
+  role_name: icinga2_cluster
+  description: A role to set up cluster communication between Icinga 2 nodes
+
+  author: donien
+
+  license: "AGPL-3.0"
+
+  min_ansible_version: "2.1"
+
+  platforms:
+    - name: Debian
+      versions:
+        - all
+    - name: EL
+      versions:
+        - all
+
+  galaxy_tags:
+    - icinga
+    - icinga2
+    - monitoring
+
+dependencies: []

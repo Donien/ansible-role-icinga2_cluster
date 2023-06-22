@@ -1,0 +1,52 @@
+---
+
+- name: Ensure needed variables are set
+  run_once: yes
+  assert:
+    that:
+      - icinga2_cluster_ca_node
+      - icinga2_cluster_zones
+    msg: "Necessary variable not defined..."
+
+- name: Include OS family specific vars
+  include_vars: "{{ role_path }}/vars/{{ ansible_os_family }}_family.yml"
+
+- name: Include OS distribution/version specific vars
+  include_vars: "{{ lookup('first_found', params) }}"
+  vars:
+    params:
+      files:
+        - "{{ ansible_os_family }}-{{ ansible_distribution }}-{{ ansible_distribution_major_version }}.yml"
+        - "{{ ansible_os_family }}-{{ ansible_distribution }}.yml"
+        - "{{ ansible_os_family }}-{{ ansible_distribution_major_version }}.yml"
+        - "default.yml"
+      paths:
+        - "{{ role_path }}/vars"
+
+- name: Create list of all set endpoints
+  run_once: yes
+  set_fact:
+    icinga2_cluster_endpoint_list: "{{ icinga2_cluster_zones | map(attribute='endpoints') | flatten }}"
+    icinga2_cluster_endpoint_list_hosts: "{{ icinga2_cluster_zones | map(attribute='endpoints') | flatten | map(attribute='host') | flatten }}"
+    icinga2_cluster_endpoint_list_names: "{{ icinga2_cluster_zones | map(attribute='endpoints') | flatten | map(attribute='name', default='') | flatten }}"
+
+- name: Create mapping of Ansible hostname to Icinga CN
+  run_once: yes
+  set_fact:
+    icinga2_cluster_endpoint_mapping: "{{ (icinga2_cluster_endpoint_mapping | default({})) | combine({item.0: item.1}) }}"
+  loop: "{{ icinga2_cluster_endpoint_list_hosts | zip(icinga2_cluster_endpoint_list_names) }}"
+
+- name: Set up CA
+  include_tasks: "{{ role_path }}/tasks/ca.yml"
+  when: (inventory_hostname == icinga2_cluster_ca_node) or (ansible_fqdn == icinga2_cluster_ca_node)
+
+- name: Run setup on all play_hosts that are endpoints
+  include_tasks: "{{ tasks_yml }}"
+  vars:
+    common_name: "{{ icinga2_cluster_endpoint_mapping[inventory_hostname] | default(inventory_hostname, true) }}"
+  when: (inventory_hostname in icinga2_cluster_endpoint_list_hosts) or (ansible_fqdn in icinga2_cluster_endpoint_list_hosts)
+  loop_control:
+    loop_var: "tasks_yml"
+  loop:
+    - "{{ role_path }}/tasks/config.yml"
+    - "{{ role_path }}/tasks/certificates.yml"

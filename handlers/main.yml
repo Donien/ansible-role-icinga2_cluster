@@ -1,0 +1,27 @@
+---
+
+- name: Get contents of new ca.crt file
+  listen: "new_ca"
+  run_once: yes
+  become: yes
+  delegate_to: "{{ icinga2_cluster_ca_node }}"
+  slurp:
+    src: "/var/lib/icinga2/ca/ca.crt"
+  register: ca_file
+
+- name: Deploy new ca.crt
+  listen: "new_ca"
+  become: yes
+  copy:
+    dest: "/var/lib/icinga2/certs/ca.crt"
+    content: "{{ ca_file.content | b64decode }}"
+    owner: "{{ icinga2_cluster_icinga_user }}"
+    group: "{{ icinga2_cluster_icinga_user }}"
+    mode: "0644"
+
+- name: Restart icinga2
+  listen: "restart_icinga2"
+  become: yes
+  systemd:
+    state: restarted
+    name: "icinga2"

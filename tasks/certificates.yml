@@ -1,0 +1,72 @@
+---
+
+- name: Make sure /var/lib/icinga2/certs exists
+  become: yes
+  file:
+    state: directory
+    path: "/var/lib/icinga2/certs"
+    owner: "{{ icinga2_cluster_icinga_user }}"
+    group: "{{ icinga2_cluster_icinga_user }}"
+    mode: "0700"
+
+- name: Check if certificate already exists
+  become: yes
+  stat:
+    path: "/var/lib/icinga2/certs/{{ common_name }}.crt"
+  register: "st"
+
+- block:
+    - name: Create private key and certificate signing request (CSR)
+      become: yes
+      shell:
+        cmd: |
+          icinga2 pki new-cert \
+            --cn {{ common_name }} \
+            --key /var/lib/icinga2/certs/{{ common_name }}.key \
+            --csr /var/lib/icinga2/certs/{{ common_name }}.csr
+      changed_when: true
+
+    - name: Get contents of CSR file
+      become: yes
+      slurp:
+        src: "/var/lib/icinga2/certs/{{ common_name }}.csr"
+      register: csr_file
+
+    - name: Place CSR file content on CA node
+      delegate_to: "{{ icinga2_cluster_ca_node }}"
+      copy:
+        dest: "/tmp/{{ common_name }}.csr"
+        content: "{{ csr_file.content | b64decode }}"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: "0644"
+
+    - name: Create certificate for CSR
+      become: yes
+      delegate_to: "{{ icinga2_cluster_ca_node }}"
+      shell:
+        cmd: |
+          icinga2 pki sign-csr --csr /tmp/{{ common_name }}.csr \
+                               --cert /tmp/{{ common_name }}.crt
+      changed_when: true
+
+    - name: Get contents of CRT file
+      become: yes
+      delegate_to: "{{ icinga2_cluster_ca_node }}"
+      slurp:
+        src: "/tmp/{{ common_name }}.crt"
+      register: crt_file
+
+    - name: Place CRT file content on CA node
+      become: yes
+      copy:
+        dest: "/var/lib/icinga2/certs/{{ common_name }}.crt"
+        content: "{{ crt_file.content | b64decode }}"
+        owner: "{{ icinga2_cluster_icinga_user }}"
+        group: "{{ icinga2_cluster_icinga_user }}"
+        mode: "0644"
+
+  when: (not st.stat.exists) or (icinga2_cluster_cert_force)
+  notify:
+    - "new_ca"
+    - "restart_icinga2"

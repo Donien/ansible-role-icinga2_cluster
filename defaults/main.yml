@@ -1,0 +1,7 @@
+---
+
+icinga2_cluster_port:
+icinga2_cluster_ca_node:
+icinga2_cluster_ca_force: false
+icinga2_cluster_cert_force: false
+icinga2_cluster_global_zones: []

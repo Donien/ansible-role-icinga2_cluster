@@ -1,6 +1,7 @@
 # icinga2_cluster
 
-This role sets up the cluster communication between Icinga 2 nodes.
+This role sets up the cluster communication between Icinga 2 nodes. Currently communication is always established bidirectional.  
+The role assumes **icinga2** to already be present and does **not** install the software itself.  
 
 ## Requirements
 

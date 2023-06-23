@@ -1,14 +1,14 @@
 ---
 
 - block:
-    - name: Render Template
+    - name: Create zones.conf
       become: yes
       template:
         src: "zones.conf.j2"
         dest: "/etc/icinga2/zones.conf"
         owner: "{{ icinga2_cluster_icinga_user }}"
         group: "{{ icinga2_cluster_icinga_user }}"
-        mode: "0740"
+        mode: "0640"
 
     - name: Set constant NodeName
       become: yes
@@ -24,21 +24,22 @@
         regexp: 'const ZoneName = ".+"'
         line: 'const ZoneName = "{{ common_name }}"'
 
+    - name: Set API port for current node
+      set_fact:
+        icinga2_cluster_current_node_port: "{{ item.port | default(icinga2_cluster_port) }}"
+      loop: "{{ lookup('subelements', icinga2_cluster_zones, 'endpoints') | flatten }}"
+      when:
+        - item.host is defined
+        - item.host == inventory_hostname
+
     - name: Set up API feature
       become: yes
-      copy:
+      template:
+        src: "api.conf.j2"
         dest: "/etc/icinga2/features-available/api.conf"
-        content: |
-          object ApiListener "api" {
-            accept_config = true
-            accept_commands = true
-          }
         owner: "{{ icinga2_cluster_icinga_user }}"
         group: "{{ icinga2_cluster_icinga_user }}"
-        mode: "0744"
-      when:
-        - inventory_hostname != icinga2_cluster_ca_node
-        - ansible_fqdn != icinga2_cluster_ca_node
+        mode: "0644"
 
     - name: Activate API feature
       become: yes
@@ -51,5 +52,6 @@
       when:
         - inventory_hostname != icinga2_cluster_ca_node
         - ansible_fqdn != icinga2_cluster_ca_node
+
 
   notify: "restart_icinga2"

@@ -1,0 +1,5 @@
+object ApiListener "api" {
+  accept_config = {{ 'false' if inventory_hostname == icinga2_cluster_ca_node else 'true' }}
+  accept_commands = {{ 'false' if inventory_hostname == icinga2_cluster_ca_node else 'true' }}
+  bind_port = "{{ icinga2_cluster_current_node_port }}"
+}   

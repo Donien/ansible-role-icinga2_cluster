@@ -49,9 +49,5 @@
         dest: "/etc/icinga2/features-enabled/api.conf"
         owner: "{{ icinga2_cluster_icinga_user }}"
         group: "{{ icinga2_cluster_icinga_user }}"
-      when:
-        - inventory_hostname != icinga2_cluster_ca_node
-        - ansible_fqdn != icinga2_cluster_ca_node
-
 
   notify: "restart_icinga2"
